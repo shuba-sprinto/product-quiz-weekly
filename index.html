@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<title>Sprinto Knowledge Audit</title>
+<style>
+  :root{
+    --bg:#221830; --surface:#2E2240; --surface-hi:#382A4E; --line:#463659;
+    --text:#F0EBF7; --muted:#A392BA; --lime:#C8F135; --coral:#F0765C; --amber:#E8B24A;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{margin:0; min-height:100vh; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    display:flex; justify-content:center; padding:0 0 48px;}
+  .wrap{width:100%; max-width:560px; padding:0 20px;}
+  .mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.12em; text-transform:uppercase;}
+  button{font-family:inherit; cursor:pointer;}
+  .card-btn{display:block; width:100%; text-align:left; background:var(--surface);
+    border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:12px; color:var(--text);}
+  .card-btn.done-seg{border-color:var(--lime);}
+  .opt{display:block; width:100%; text-align:left; background:var(--surface); color:var(--text);
+    border:1px solid var(--line); border-radius:12px; padding:13px 15px; font-size:14.5px;
+    line-height:1.4; margin-bottom:9px;}
+  .opt .letter{font-family:ui-monospace,Menlo,monospace; letter-spacing:.12em; font-size:10px;
+    color:var(--muted); margin-right:10px;}
+  .opt.correct{border-color:var(--lime); background:rgba(200,241,53,.08);}
+  .opt.correct .letter{color:var(--lime);}
+  .opt.wrongpick{border-color:var(--coral); background:rgba(240,118,92,.08);}
+  .opt.dim{color:var(--muted);}
+  .idk{display:block; width:100%; text-align:center; background:transparent; color:var(--muted);
+    border:1px dashed var(--line); border-radius:12px; padding:12px; font-size:13.5px; margin-top:2px;}
+  .idk.picked{color:var(--amber); border-color:var(--amber);}
+  .primary{width:100%; background:var(--lime); color:#1C1426; border:none; border-radius:12px;
+    padding:15px; font-size:15px; font-weight:700; margin-top:15px;}
+  .ghost{flex:1; background:transparent; color:var(--lime); border:1px solid var(--lime);
+    border-radius:12px; padding:14px; font-size:14px; font-weight:700;}
+  .feedback{margin-top:16px; background:var(--surface-hi); border-radius:12px; padding:15px 17px;
+    font-size:13.5px; line-height:1.6;}
+  .bar-track{display:flex; height:8px; border-radius:4px; overflow:hidden; background:var(--surface);}
+  .prog-track{height:3px; background:var(--surface); border-radius:2px; margin-bottom:24px;}
+  .prog-fill{height:3px; background:var(--lime); border-radius:2px; transition:width .25s;}
+  .stat{flex:1; background:var(--surface); border-radius:12px; padding:13px 12px;}
+  h1{font-size:32px; line-height:1.15; margin:0 0 12px; font-weight:800;}
+  h2{font-size:18.5px; line-height:1.45; font-weight:700; margin:0 0 18px;}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<script>
+const C = {
+  bg: "#221830", surface: "#2E2240", surfaceHi: "#382A4E", line: "#463659",
+  text: "#F0EBF7", muted: "#A392BA", lime: "#C8F135", coral: "#F0765C", amber: "#E8B24A",
+};
+
+// Shuffle option order at quiz start so correct answers are evenly spread across A–D
+const shuffleQ = (q) => {
+  const order = q.opts.map((_, i) => i).sort(() => Math.random() - 0.5);
+  return { ...q, opts: order.map((i) => q.opts[i]), ans: order.indexOf(q.ans) };
+};
+
+// sec: "Product" | "Market"  (Market = competition, pricing, market)
+const SEGMENTS = [
+  {
+    name: "Startups",
+    tag: "High Intent + Startups · AMER, EMEA, APAC",
+    questions: [
+      // ——— PRODUCT (20) ———
+      { sec: "Product", q: "How much of SOC 2 evidence collection does Sprinto automate?", opts: ["60–70%", "75–80%", "90–95%", "100%"], ans: 2, why: "90–95% is the standard line across startup demos (Priya, John Patrick, Amulya)." },
+      { sec: "Product", q: "The SOC 2 Type 1 timeline quoted to startups is:", opts: ["Under 1 week", "3–6 weeks", "3 months", "6 months"], ans: 1, why: "3–4 weeks setup plus a short audit — 3–6 weeks end to end (Retailium, Breeze, Chapter deals)." },
+      { sec: "Product", q: "How many hours of client-side effort does a small startup need to get audit-ready on Sprinto?", opts: ["8–10 hours", "40–50 hours", "100+ hours", "300+ hours"], ans: 0, why: "8–10 hours is the number for small startups (Nikhat's Chapter call, Amulya's Modern AI call; up to ~15 hrs in others)." },
+      { sec: "Product", q: "The SOC 2 Type 2 observation window is:", opts: ["30 days", "90 days", "180 days", "365 days"], ans: 1, why: "A 90-day / 3-month continuous observation period, consistently quoted." },
+      { sec: "Product", q: "End-to-end SOC 2 Type 2 takes roughly:", opts: ["6–8 weeks", "2–3 months", "4–5 months", "9–12 months"], ans: 2, why: "Setup + 90-day observation + audit ≈ 4–5 months (Attenteo, Moneyability, Rose Wellness deals)." },
+      { sec: "Product", q: "HIPAA, as positioned against SOC 2:", opts: ["Needs its own external audit, ~3 months", "Self-attested in 2–3 weeks, ~80% control overlap with SOC 2", "Applies only to hospitals", "Takes longer than SOC 2"], ans: 1, why: "Self-declared via the Trust Center in 2–3 weeks, with ~80% of controls shared with SOC 2 (Sakura Health, Healiom, Omna deals)." },
+      { sec: "Product", q: "Sprinto cannot perform the SOC 2 audit itself because:", opts: ["It has no auditors", "AICPA rules require an independent third-party CPA firm", "SOC 2 audits are government-run", "It can, for a fee"], ans: 1, why: "AICPA independence rules — attestation must come from a third-party CPA firm (explained on the Precepi call)." },
+      { sec: "Product", q: "For ISO 27001, Sprinto's in-house expertise is:", opts: ["Certified ISO lead auditors who guide scoping and gap closure", "Outsourced consultants", "None — clients self-serve", "A legal team"], ans: 0, why: "In-house certified ISO lead auditors advise on scoping and gap closure; the certification audit itself stays independent (Modern AI, NiSquare deals)." },
+      { sec: "Product", q: "Penetration testing on a Sprinto deal is:", opts: ["Done by Sprinto engineers", "Done via partner vendors (e.g. Astra, YNOX), report uploaded as evidence", "Not required for SOC 2", "Done by the auditor"], ans: 1, why: "Sprinto doesn't pen test — reps route to partners like Astra and YNOX and the report goes in as evidence (Rose Wellness, Chapter deals)." },
+      { sec: "Product", q: "For Windows devices a customer's JAMF setup doesn't cover, the answer is:", opts: ["Sprinto's lightweight MDM", "Force an Intune purchase", "An audit exception", "Manual screenshots"], ans: 0, why: "Sprinto's lightweight MDM covers the gap — offered on the Tixserve deal; Priya also verified antivirus-push notifications for Tradable." },
+      { sec: "Product", q: "The Trust Center is:", opts: ["An internal audit log", "A public page showing compliance status and policies — also the vehicle for HIPAA self-declaration", "The auditor portal", "A training module"], ans: 1, why: "Customer-facing compliance/policy page; it's also how HIPAA self-attestation gets published (Healiom deal)." },
+      { sec: "Product", q: "Before certification lands, a startup can show its enterprise customers:", opts: ["Nothing until the report", "A 'working towards compliance' letter from Sprinto", "A provisional certificate", "The auditor's NDA"], ans: 1, why: "Sprinto issues a working-towards-compliance letter once systems are connected — used to unblock deals mid-journey (Modern AI)." },
+      { sec: "Product", q: "For Australian startups eyeing government work, the framework roadmap reps position:", opts: ["IRAP immediately", "ISO 27001 first, Essential 8 next, IRAP deferred 1–2 years", "Essential 8 only", "SOC 2 covers it all"], ans: 1, why: "ISO 27001 now (government-recognised), Essential 8 as the follow-on build, IRAP parked 1–2 years out (Dinode deal, this week)." },
+      { sec: "Product", q: "The integration count quoted in startup demos:", opts: ["50+", "100+", "300+", "1,000+"], ans: 2, why: "300+ tool integrations (Breeze deal and others)." },
+      { sec: "Product", q: "Sprinto's built-in security awareness training was positioned as able to replace:", opts: ["KnowBe4", "Coursera", "SANS", "Udemy"], ans: 0, why: "On the Tixserve deal the training module was pitched as a KnowBe4 replacement, saving that contract." },
+      { sec: "Product", q: "For a startup's own third parties (e.g. MX, Skyflow), Sprinto provides:", opts: ["Nothing — out of scope", "A vendor library with due-diligence workflows", "Only a spreadsheet template", "Auditor referrals"], ans: 1, why: "Vendor library + due-diligence workflows handle third-party risk (Moneyability's MX/Skyflow integrations)." },
+      { sec: "Product", q: "Before the external audit, Sprinto targets readiness of:", opts: ["75%", "85%", "95%", "100%"], ans: 2, why: "Mock audits and pre-audit reviews target ~95% readiness before the auditor comes in (Branch77, Iron Gate deals)." },
+      { sec: "Product", q: "The support model bundled into a startup subscription:", opts: ["Email-only, 48h SLA", "Dedicated TAM / compliance expert, unlimited support, no upsell", "Paid support tiers", "Community forum"], ans: 1, why: "Dedicated technical account manager and unlimited expert support with no upselling is the pitch (Healiom, WordAuth, Iron Gate deals)." },
+      { sec: "Product", q: "Contract flexibility reps can offer to unblock a hesitant startup:", opts: ["Nothing — terms are fixed", "Delayed start/payment dates, plus exit clauses for insolvency or dissatisfaction", "Month-to-month billing", "Free first year"], ans: 1, why: "Delayed payment and start dates (Signal Specialty deal) and contract exit clauses for insolvency or dissatisfaction (Finpace deal) are both on the table." },
+      { sec: "Product", q: "Post-signature, real-time support is delivered through:", opts: ["A ticketing portal only", "A shared Slack channel", "Weekly calls only", "WhatsApp only"], ans: 1, why: "A dedicated Slack channel with the customer is stood up at kickoff (Healiom and others)." },
+      // ——— MARKET (10) ———
+      { sec: "Market", q: "The platform price anchor for a small startup team:", opts: ["$1–2K/yr", "$4–5K/yr", "$8–10K/yr", "$15K/yr"], ans: 1, why: "$4,000–5,000/yr is the small-team anchor across AMER and EMEA startup demos (Dealscale, Techtum, WordAuth, Rhythm House)." },
+      { sec: "Market", q: "Auditor pricing tiers reps quote:", opts: ["All auditors ~$10K", "Emerging ~$1.5K; enterprise-brand $5–6K", "Flat $3K", "Free with platform"], ans: 1, why: "Emerging-tier auditors ~$1,500, enterprise-brand $5–6K — matched to the customer's buyer profile (Precepi, Dealscale deals)." },
+      { sec: "Market", q: "When displacing Vanta at a startup, the credible price story is roughly:", opts: ["$15K down to $10K", "$31K+ down to ~$8K first year", "$20K down to $12K", "$25K down to $9K"], ans: 1, why: "Vanta spend of $31K+ against a ~$8K Sprinto first year — the live example is Channl.ai, where onboarding raced the Vanta contract expiry." },
+      { sec: "Market", q: "Against Thoropass, the differentiation claim is:", opts: ["Cheaper auditors", "More automation + 7 years in market + ~4,500 active customers", "Better UI", "Faster SLAs"], ans: 1, why: "Automation depth backed by tenure and customer count (Precepi deal)." },
+      { sec: "Market", q: "Beyond GRC platforms, startup deals are increasingly contested by:", opts: ["Big-4 consultancies", "HR/IT suites bundling compliance, plus prospects going auditor-direct", "Open-source checklist tools", "Cyber-insurance providers"], ans: 1, why: "Rippling's compliance add-on and the go-direct-with-an-auditor option both showed up (Tradable Financial) — the competition isn't always a GRC platform." },
+      { sec: "Market", q: "A 3-year price path quoted to lock in a startup:", opts: ["Flat $4K all years", "$4,000 → ~$5,500 by year 3", "$4K doubling yearly", "$4K → $8K"], ans: 1, why: "$4K year one stepping to ~$5.5K by year three — multi-year stability as the close lever (Iron Gate deal)." },
+      { sec: "Market", q: "The pricing-structure contrast reps draw against Vanta:", opts: ["Vanta has no auditors", "Vanta charges separately for compliance support; Sprinto bundles expert support in", "Vanta bills monthly", "Vanta is cheaper upfront"], ans: 1, why: "Unbundled compliance support is the Vanta cost trap reps highlight — Sprinto's dedicated experts come included (TruePaper deal, this week)." },
+      { sec: "Market", q: "The #1 buying trigger in startup deals:", opts: ["A funding round", "A security breach", "An enterprise customer's security requirement blocking a deal", "New regulation"], ans: 2, why: "Almost every startup deal starts with a customer or prospect demanding SOC 2 / ISO before signing (Boost My School, Breeze, Retailium, Chapter…)." },
+      { sec: "Market", q: "The dual-certification motion (SOC 2 + ISO together) is priced using:", opts: ["Two full platform fees", "Shared controls across frameworks, plus early-commitment discounts (e.g. $1,000 off)", "ISO free with SOC 2", "Auditor bundling only"], ans: 1, why: "Shared controls make the second framework cheap to add; a $1,000 early-commit discount pushed a same-week decision (Dodo Payments deal)." },
+      { sec: "Market", q: "The decision window reps work toward in startup deals:", opts: ["48 hours", "~1–2 weeks", "1–2 months", "A quarter or more"], ans: 1, why: "Founder/CTO-led decisions in 1–2 weeks — reps set explicit decision dates (Swavy 48h was the outlier; Precepi, Techtum, Modern AI all ~1 week)." },
+    ],
+  },
+  {
+    name: "SMB",
+    tag: "SMB · AMER, EMEA, APAC + India",
+    questions: [
+      // ——— PRODUCT (20) ———
+      { sec: "Product", q: "The framework count quoted in SMB demos:", opts: ["10+", "25+", "50+", "500+"], ans: 2, why: "50+ frameworks is the SMB demo number (ZeroTeq demo)." },
+      { sec: "Product", q: "\u201CDr. Sprinto\u201D is:", opts: ["The AI chatbot", "The device compliance / endpoint monitoring agent", "The auditor portal", "The risk engine"], ans: 1, why: "Device-level compliance monitoring runs through Dr. Sprinto (ZeroTeq demo)." },
+      { sec: "Product", q: "The metric Sprinto tracks continuously so audits carry minimal risk:", opts: ["NPS", "A readiness score", "Ticket volume", "Uptime"], ans: 1, why: "A continuously-tracked audit readiness score is the core dashboard metric (ZeroTeq demo)." },
+      { sec: "Product", q: "SprintoX is:", opts: ["The enterprise tier", "A self-serve module for early audit readiness", "A pen-test add-on", "The mobile app"], ans: 1, why: "Self-serve early readiness — Renuka used it to get SwissDiData hands-on before contract." },
+      { sec: "Product", q: "The audit outcome claim used in SMB pitches:", opts: ["90% pass rate", "95% pass rate", "99% pass rate", "100% audit success rate"], ans: 3, why: "A 100% audit success rate was the claim on the SwissDiData deal — know exactly what we're promising before you repeat it." },
+      { sec: "Product", q: "Manual compliance effort vs Sprinto, as quantified for SMB prospects:", opts: ["100 hrs → 50 hrs", "300–400 hrs → 15–20 hrs", "50 hrs → 10 hrs", "1,000 hrs → 100 hrs"], ans: 1, why: "300–400 manual hours compressed to 15–20 on-platform (Multicatalyst deal)." },
+      { sec: "Product", q: "For businesses with seasonal workforce swings, the pitched capability is:", opts: ["Headcount forecasting", "Automated employee lifecycle (onboarding/offboarding) compliance", "Contractor exclusion", "Manual HR exports"], ans: 1, why: "Automated joiner/leaver compliance tasks — the hook on the Barksdale deal (150 employees, 250 devices, seasonal staff)." },
+      { sec: "Product", q: "Sprinto's plan tiers referenced in SMB deals:", opts: ["Basic and Pro", "Foundation and Growth", "Core and Plus", "Silver and Gold"], ans: 1, why: "Foundation and Growth plans (Stackular deal proposal)." },
+      { sec: "Product", q: "Employee security training in Sprinto is:", opts: ["Optional", "Mandatory and tracked in-platform for audit readiness", "External-only", "Annual only"], ans: 1, why: "Training completion is mandatory for audit readiness and tracked in the platform (Stackular deal)." },
+      { sec: "Product", q: "For MSPs/consultancies managing many client orgs, Sprinto offers:", opts: ["One shared account", "Multi-tenant management of multiple organizations", "Reseller licenses only", "Nothing"], ans: 1, why: "Multi-tenant SaaS management for compliance service providers (Artilus deal)." },
+      { sec: "Product", q: "AI capabilities now featured in SMB switch pitches:", opts: ["AI auditors", "AI-driven policy generation personalized to the company, plus compliance-gap resolution", "Chatbot support only", "AI pen testing"], ans: 1, why: "Personalized policy generation and automated gap resolution headlined a Vanta-switch pitch (Interact deal, this week)." },
+      { sec: "Product", q: "User scoping and task delegation integrates with:", opts: ["Google Workspace", "Salesforce", "SAP", "Workday only"], ans: 0, why: "Google Workspace integration drives user management and task delegation (ZeroTeq demo)." },
+      { sec: "Product", q: "When an SMB has no hard deadline, the recommended path is:", opts: ["Type 1 first, always", "Go directly to SOC 2 Type 2", "Skip SOC 2 for ISO", "Self-attest"], ans: 1, why: "Direct Type 2 — customers prefer it and it builds long-term credibility (Multicatalyst recommendation)." },
+      { sec: "Product", q: "GDPR in an SMB deal is positioned as:", opts: ["Free with SOC 2", "A paid add-on framework, mandatory for EU business", "Not supported", "US-only"], ans: 1, why: "GDPR rides as a paid add-on framework alongside SOC 2/ISO (Multicatalyst quote included a GDPR add-on)." },
+      { sec: "Product", q: "The regulation driving Indian SMBs toward ISO 27001 right now:", opts: ["RBI guidelines", "DPDP Act", "SEBI norms", "IT Act 2000"], ans: 1, why: "DPDP Act readiness is the driver — e.g. the FRND deal in APAC." },
+      { sec: "Product", q: "SOC 2 audit fees quoted in SMB deals span:", opts: ["$500–1K", "$1K–8K depending on auditor tier", "$10K–20K", "Flat $5K"], ans: 1, why: "$1,000–8,000 depending on auditor brand tier (Swavy deal)." },
+      { sec: "Product", q: "The auditor credibility check reps share with skeptical buyers:", opts: ["Glassdoor reviews", "The firm's peer review status", "Big-4 affiliation only", "Client logos"], ans: 1, why: "AICPA peer review status links were shared to validate auditor quality (Swavy deal)." },
+      { sec: "Product", q: "Sprinto's dedicated ISO auditor assists clients while:", opts: ["Also signing the certificate", "Audit independence is maintained via third-party firms", "Charging hourly", "Working for the client"], ans: 1, why: "In-house auditor guidance for readiness; the certifying audit stays independent (Artilus deal)." },
+      { sec: "Product", q: "The SOC 2 preparation phase before observation starts is roughly:", opts: ["3 days", "~3 weeks", "3 months", "6 months"], ans: 1, why: "~3 weeks of implementation before the observation window opens (Barksdale deal)." },
+      { sec: "Product", q: "A SOC 2 report stays current for:", opts: ["6 months", "~12 months, then annual re-audit", "3 years", "Indefinitely"], ans: 1, why: "SOC 2 is an annual cycle — customers should budget for yearly audits (RemoteApps deal framing)." },
+      // ——— MARKET (10) ———
+      { sec: "Market", q: "India SMB pricing anchor (platform + audit):", opts: ["₹1L + ₹50K", "₹5L platform + ₹1.5–2L audit", "₹10L + ₹5L", "₹2L all-in"], ans: 1, why: "~₹5 lakh platform plus ₹1.5–2 lakh audit (Lexlegis deal)." },
+      { sec: "Market", q: "The discount depth used to close an ISO deal within the month:", opts: ["$9K → $7.5K", "$9K → $5K", "$9K → $8K", "No discounting"], ans: 1, why: "$9,000 list dropped to $5,000 for a sign-this-month commitment — ~45% (Bottomline IT deal). Know the floor before you quote one." },
+      { sec: "Market", q: "SOC 2 platform pricing for a ~75-employee company:", opts: ["$4K", "$7.5K", "$12K", "$20K"], ans: 1, why: "$7,500/yr up to 75 employees (Conexig deal)." },
+      { sec: "Market", q: "The newer competitor whose public controversy reps are using in deals:", opts: ["Delve", "Comp AI", "Oneleet", "Scytale"], ans: 0, why: "Articles on the Delve controversy were shared to steer a buyer toward reputable auditors (Swavy deal)." },
+      { sec: "Market", q: "The wedge displacing Scrut in SMB accounts:", opts: ["Price only", "Weak automation (manual evidence uploads) plus poor support", "Missing frameworks", "No trust center"], ans: 1, why: "Scrut's manual evidence uploads and support quality drove a live switch this week (Docket AI deal), timed to their September contract expiry." },
+      { sec: "Market", q: "For US government work, the compliance expectation is:", opts: ["ISO 27001 only", "SOC 2 Type 2 as the minimum; ISO 27001 preferred internationally", "FedRAMP always", "HIPAA"], ans: 1, why: "Type 2 is the US-gov floor; ISO travels better internationally (Conexig deal)." },
+      { sec: "Market", q: "The single-year renewal escalator (vs multi-year locks):", opts: ["~5%", "~10%", "~15%", "~25%"], ans: 2, why: "~15% annual increases on single-year deals is the standard pitch for pushing multi-year." },
+      { sec: "Market", q: "Multi-year SMB expansion deals are being sweetened with:", opts: ["Free seats", "A deep year-one discount (~36%) with the TPRM module included", "Free audits", "Lifetime pricing"], ans: 1, why: "A 35.8% year-one discount with TPRM features included got a multi-year order form approved this week (Imply deal)." },
+      { sec: "Market", q: "Payment structures reps are using to unblock SMB budgets:", opts: ["Annual upfront only", "Half upfront / half at six months, or biannual payment plans", "Monthly credit card", "Pay after certification"], ans: 1, why: "A 50/50 split at six months (Netzun deal) and a biannual plan (Vroombrick deal) both surfaced this week — payment flexibility is now a live closing lever." },
+      { sec: "Market", q: "A recurring SMB buyer archetype in the pipeline:", opts: ["Solo founders", "MSPs / consultancies reselling compliance to their clients", "Enterprises downsizing", "Government agencies"], ans: 1, why: "MSPs and compliance consultancies buying multi-tenant showed up repeatedly this month (Artilus, Deep.bi) — a channel-shaped motion worth formalizing." },
+    ],
+  },
+  {
+    name: "Commercial",
+    tag: "LSMB + Commercial · AMER, EMEA, APAC + India",
+    questions: [
+      // ——— PRODUCT (20) ———
+      { sec: "Product", q: "The module Sprinto now sells standalone in Commercial deals:", opts: ["Trust Center", "Vendor management / TPRM", "Training", "MDM"], ans: 1, why: "TPRM/vendor management as a standalone — the Vyond and Oglethorpe deals were module-only." },
+      { sec: "Product", q: "The vendor lifecycle Sprinto's TPRM covers:", opts: ["Intake only", "Intake → risk scoring → due diligence → periodic reviews → offboarding", "Payments and procurement", "Contracts only"], ans: 1, why: "Full lifecycle including structured offboarding (Oglethorpe walkthrough)." },
+      { sec: "Product", q: "Repetitive vendor workflows are handled by:", opts: ["Manual queues", "A custom rules / automation engine (reminders, task assignment)", "Email templates", "Zapier only"], ans: 1, why: "Customer-defined automation rules drive reminders and task routing (Vyond walkthrough)." },
+      { sec: "Product", q: "AI agents in TPRM do what?", opts: ["Write contracts", "Analyze vendor documents and update risk scores, with user-controlled autonomy", "Negotiate pricing", "Replace auditors"], ans: 1, why: "Doc analysis + risk score updates, with the customer choosing the automation level (Vyond walkthrough)." },
+      { sec: "Product", q: "Beyond vendors, the Vyond-style walkthroughs also showcased:", opts: ["Payroll", "Access reviews for user privileges on critical systems", "Expense management", "CRM sync"], ans: 1, why: "Systematic access reviews were part of the module pitch (Vyond walkthrough)." },
+      { sec: "Product", q: "Multi-entity management in Sprinto is delivered through:", opts: ["Separate accounts", "\u201CZones\u201D under one unified framework", "Spreadsheet rollups", "A parent dashboard only"], ans: 1, why: "Zones let one org run many legal entities under a unified compliance framework — the hook for Assa Abloy's 8-entity plan." },
+      { sec: "Product", q: "The framework count quoted in enterprise-grade pitches:", opts: ["50+", "100+", "200+", "400+"], ans: 2, why: "200+ frameworks in Commercial/enterprise pitches (NABP, Vyond intros) — vs 50+ in SMB demos. Know which number to use where." },
+      { sec: "Product", q: "Company-scale facts in the current enterprise exec-demo pitch:", opts: ["1,000 customers, $5M ARR", "3,500+ customers, ~$25M ARR, logos like Bridgestone and Pokemon", "10,000 customers, $100M ARR", "500 customers, 10 countries"], ans: 1, why: "3,500+ customers, ~$25M ARR, Bridgestone and Pokemon as anchor logos (Calquake executive demo, this week). Some demos still quote 4,000+ customers — worth aligning." },
+      { sec: "Product", q: "The \u201Ccommon control framework\u201D means:", opts: ["One framework per control", "One control satisfies multiple frameworks at once (SOC 2, ISO, GDPR, RBI…)", "Controls shared between customers", "A public standard"], ans: 1, why: "Map once, comply many — the core architecture pitch on the Signzy deep dive." },
+      { sec: "Product", q: "For brand-new regulations (e.g. the EU CRA), Sprinto can:", opts: ["Only wait for a product release", "Ingest the regulation with AI assistance into a custom framework", "Refer to consultants", "Not support them"], ans: 1, why: "AI-assisted ingestion of new regulations into custom frameworks (BKV's Cyber Resilience Act ask; NABP custom controls)." },
+      { sec: "Product", q: "Sprinto's AI governance offering includes:", opts: ["Model training", "An AI use-case registry, shadow-AI detection via browser extension, mapped to NIST AI RMF and ISO 42001", "Chip monitoring", "Only a policy template"], ans: 1, why: "Registry + shadow-AI monitoring + framework mapping (AES International deal)." },
+      { sec: "Product", q: "On privacy, Commercial demos covered:", opts: ["Nothing", "Privacy impact assessments plus GDPR and EU AI Act structured assessments", "Only cookie banners", "US-only privacy"], ans: 1, why: "PIA module with GDPR and EU AI Act support (Anthesis demo)." },
+      { sec: "Product", q: "In security questionnaire automation, the honest gap flagged in an RFP was:", opts: ["No AI responses", "No built-in questionnaire template library (SIG integrates, though)", "No export", "No permissions"], ans: 1, why: "AI-generated responses and SIG integration exist, but built-in questionnaire templates were marked a gap in the Anthesis RFP." },
+      { sec: "Product", q: "The standard Commercial evaluation motion is:", opts: ["Sign first, trial later", "A 1–2 week POC/sandbox with agreed success criteria", "A 6-month pilot", "Reference calls only"], ans: 1, why: "Payabl (2 weeks with success criteria), Herkey (1 week), NABP and Vyond (sandbox trials); the largest trials now get daily working sessions (EasyPost, this week)." },
+      { sec: "Product", q: "For data residency-sensitive Indian accounts, Sprinto offers:", opts: ["US hosting only", "An India data-center hosting option", "On-prem installs", "No option"], ans: 1, why: "India DC selection at account creation (Herkey POC kickoff)." },
+      { sec: "Product", q: "Beyond the platform subscription, Sprinto now sells an ongoing service:", opts: ["Managed pen testing", "Year-round compliance management at ~$2,000/month, or lighter on-demand audit help", "Outsourced auditing", "Staffing placement"], ans: 1, why: "A $2K/month year-round compliance management add-on (with an on-demand audit-assistance alternative) was pitched this week (Endevor deal) — a new attach for Commercial." },
+      { sec: "Product", q: "For tools Sprinto doesn't natively integrate with, custom API integrations can be built in:", opts: ["Days", "Weeks", "Months", "Not possible"], ans: 0, why: "Days, not quarters — the commitment made on the Brio integration call." },
+      { sec: "Product", q: "A known product limitation reps should handle honestly:", opts: ["No AWS support", "Rule groups can be disabled but individual checks need backend intervention", "No SSO", "No policy module"], ans: 1, why: "Check-level disabling isn't self-serve yet — it's a backend one-off, with an architecture overhaul planned (Wagestream trial)." },
+      { sec: "Product", q: "For OneTrust/Vanta switchers, Sprinto is offering:", opts: ["Nothing special", "Migration support — potentially including a free migration month", "Double licenses", "A rebate"], ans: 1, why: "Migration support with a possible free migration month was floated to ease Vyond off OneTrust." },
+      { sec: "Product", q: "Risk workflows integrate with which ticketing systems:", opts: ["Jira and ServiceNow", "Asana only", "Linear", "None"], ans: 0, why: "Jira and ServiceNow integration for risk and remediation workflows (Anthesis demo; Jira evidence automation also probed by NABP)." },
+      // ——— MARKET (10) ———
+      { sec: "Market", q: "A standalone TPRM / vendor-management module deal prices at roughly:", opts: ["$10K", "$18K", "$30K", "$50K"], ans: 2, why: "~$30K quoted on an OneTrust-replacement deal (Vyond), against the prospect's stated $40K budget — the current anchor for module-only Commercial deals." },
+      { sec: "Market", q: "The Growth plan for a single framework prices at roughly:", opts: ["$6–8K/yr", "$12–18K/yr", "$25–30K/yr", "$40K+/yr"], ans: 1, why: "$12,000–18,000 annually for one framework on Growth (Assa Abloy deal)." },
+      { sec: "Market", q: "A mid-market SOC 2 engagement with complex scope (e.g. a consultancy without its own production environment) prices at roughly:", opts: ["$8K/yr", "$15K/yr", "$25K/yr", "$30K/yr"], ans: 1, why: "~$15,000 annually (Rapidr deal) — scope complexity and environment ownership push it well above SMB anchors." },
+      { sec: "Market", q: "The most common wedge for displacing Vanta in Commercial accounts:", opts: ["Missing frameworks", "Support quality and cost", "No API access", "A weaker auditor network"], ans: 1, why: "Support dissatisfaction plus cost is the recurring Vanta wedge — e.g. Blink Charging's switch, paired with a heavily subsidized first-year offer." },
+      { sec: "Market", q: "Per a rare post-loss feedback call this month, the dimension Sprinto lost a Commercial evaluation on:", opts: ["Price", "UI/UX — the security team found the interface confusing", "Missing integrations", "Audit support"], ans: 1, why: "Functionality was fine; the interface lost it against slicker rivals (Medrio deal — logged with product, and the buyer offered to re-look if UI improves)." },
+      { sec: "Market", q: "A displacement pattern in defense-adjacent accounts: prospects leave their incumbent GRC tool because it can't:", opts: ["Run penetration tests", "Flex to niche requirements like ITAR-specific controls (with CMMC Level 2 looming)", "Export audit reports", "Integrate with AWS"], ans: 1, why: "Custom-framework rigidity — Ditto is leaving Drata over ITAR controls with a CMMC L2 assessment ahead. Framework flexibility is the counter-pitch." },
+      { sec: "Market", q: "The two platforms Sprinto most often shares a Commercial shortlist with:", opts: ["Drata and Scrut", "Vanta and Secureframe", "OneTrust and Archer", "AuditBoard and LogicGate"], ans: 1, why: "Vanta and Secureframe are the usual shortlist company (e.g. the Payabl evaluation, decided via a two-week POC)." },
+      { sec: "Market", q: "The regulation pulling European industrial firms into pipeline:", opts: ["NIS 2 only", "The EU Cyber Resilience Act (deadlines 2026–27)", "DORA only", "Basel III"], ans: 1, why: "CRA product/incident-reporting deadlines drove the BKV deal — with IEC 62443 as the adjacent ask. NIS 2 also surfaced (Lautec)." },
+      { sec: "Market", q: "A recurring Commercial deal pattern to price deliberately for:", opts: ["Unlimited budgets", "Enterprise-grade logos with sub-$10K budgets", "No compliance teams", "Auditor-led buying"], ans: 1, why: "Big-logo, small-budget — e.g. a national pharmacy-boards association with a hard <$10K/yr cap (NABP deal)." },
+      { sec: "Market", q: "The emerging pricing dimension enterprise buyers are probing:", opts: ["Per-seat fees", "AI credit consumption and role-based controls on usage", "Storage fees", "API call pricing"], ans: 1, why: "Anthesis pushed on AI credit consumption, budgeting, and role-based limits — expect this in more Commercial negotiations." },
+    ],
+  },
+];
+
+const REMEDIATION = {
+  Startups: {
+    Product: "The startup pitch is built on speed numbers — 8–10 hrs effort, 70% readiness post-onboarding, 95% pre-audit, the working-towards-compliance letter. Rewatch one long-form demo (Moneyability or Modern AI on Fireflies) to lock these in.",
+    Market: "Pricing anchors and the Vanta/Thoropass/Rippling competitive set are where startup deals swing. The Channl.ai and Precepi calls on Fireflies are the two sharpest 30-minute studies.",
+  },
+  SMB: {
+    Product: "SMB demos lean on SprintoX, Dr. Sprinto, readiness scores, and the Foundation/Growth split. The ZeroTeq and Stackular calls on Fireflies cover almost all of it.",
+    Market: "Know the discount floor ($9K→$5K happened), the ₹5L India anchor, and the payment-flexibility levers — these decide SMB deals.",
+  },
+  Commercial: {
+    Product: "Commercial is selling modules, not just frameworks — TPRM lifecycle, zones, AI governance, the questionnaire-template gap. The Vyond and Anthesis walkthroughs are the definitive hour — ask your AD for the recordings.",
+    Market: "Every Commercial competitive story this month is a displacement (OneTrust, Vanta, Drata) or a loss lesson (Medrio on UI). These six deals are the competitive playbook — review them before your next Commercial call.",
+  },
+};
+
+// ————— App state —————
+let S = { screen:"home", seg:null, idx:0, picked:null, answers:[], quizQs:null, done:{} };
+const app = document.getElementById("app");
+const esc = (s) => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+
+function startSeg(name){
+  const seg = SEGMENTS.find(x=>x.name===name);
+  S = {...S, screen:"quiz", seg:name, idx:0, picked:null, answers:[], quizQs:seg.questions.map(shuffleQ)};
+  render();
+}
+function choose(val){
+  if(S.picked!==null) return;
+  const q = S.quizQs[S.idx];
+  const result = val==="idk" ? "idk" : (val===q.ans ? "correct" : "wrong");
+  S.picked = val; S.answers = [...S.answers, {result}];
+  render();
+}
+function next(){
+  const seg = SEGMENTS.find(x=>x.name===S.seg);
+  if(S.idx+1 < seg.questions.length){ S.idx++; S.picked=null; }
+  else { S.done = {...S.done, [S.seg]:S.answers}; S.screen="results"; }
+  render();
+}
+function goHome(){ S.screen="home"; S.seg=null; render(); }
+
+function render(){
+  if(S.screen==="home") return renderHome();
+  if(S.screen==="results") return renderResults();
+  renderQuiz();
+}
+
+function renderHome(){
+  const cards = SEGMENTS.map(s=>{
+    const res = S.done[s.name];
+    const score = res ? res.filter(a=>a.result==="correct").length : null;
+    return `<button class="card-btn ${res?'done-seg':''}" onclick="startSeg('${s.name}')">
+      <div style="display:flex;justify-content:space-between;align-items:baseline">
+        <span style="font-size:18px;font-weight:800">${s.name}</span>
+        <span class="mono" style="font-size:10px;color:${res?'var(--lime)':'var(--muted)'}">${res?score+"/30 · retake":"30 controls"}</span>
+      </div>
+      <div style="font-size:12.5px;color:var(--muted);margin-top:4px">${s.tag}</div>
+    </button>`;
+  }).join("");
+  let full = "";
+  if(Object.keys(S.done).length===3){
+    const c = Object.values(S.done).reduce((n,a)=>n+a.filter(x=>x.result==="correct").length,0);
+    const g = Object.values(S.done).reduce((n,a)=>n+a.filter(x=>x.result==="idk").length,0);
+    full = `<div style="margin-top:20px;background:var(--surface-hi);border-radius:14px;padding:16px 18px">
+      <div class="mono" style="font-size:10px;color:var(--lime);margin-bottom:8px">Full audit complete</div>
+      <div style="font-size:14px;line-height:1.6">Overall: ${c}/90 correct · ${g} gaps logged.</div></div>`;
+  }
+  app.innerHTML = `<div style="padding-top:48px">
+    <div class="mono" style="font-size:11px;color:var(--lime);margin-bottom:14px">Sprinto · New Business Sales</div>
+    <h1>Knowledge Audit<span style="color:var(--lime)">.</span></h1>
+    <p style="color:var(--muted);font-size:14.5px;line-height:1.6;margin:0 0 28px">
+      Three segment audits, 30 controls each — 20 on product, 10 on competition, pricing and market.
+      Every question is sourced from the team's real prospect calls this month.
+      "I don't know" logs an honest gap instead of a guess — gaps are fixable, lucky guesses aren't.</p>
+    ${cards}${full}</div>`;
+}
+
+function renderQuiz(){
+  const seg = SEGMENTS.find(x=>x.name===S.seg);
+  const total = seg.questions.length;
+  const q = S.quizQs[S.idx];
+  const answered = S.picked!==null;
+  const result = answered ? S.answers[S.idx].result : null;
+  const opts = q.opts.map((opt,i)=>{
+    let cls="opt";
+    if(answered){
+      if(i===q.ans) cls+=" correct";
+      else if(S.picked===i) cls+=" wrongpick";
+      else cls+=" dim";
+    }
+    return `<button class="${cls}" onclick="choose(${i})"><span class="letter">${String.fromCharCode(65+i)}</span>${esc(opt)}</button>`;
+  }).join("");
+  let feedback="";
+  if(answered){
+    const tone = result==="correct"?"var(--lime)":result==="idk"?"var(--amber)":"var(--coral)";
+    const label = result==="correct"?"✓ Passing":result==="idk"?"◦ Gap logged":"✕ Failing";
+    const ansNote = result!=="correct" ? `<span style="color:var(--muted)">&nbsp;&nbsp;·&nbsp;&nbsp;answer: ${String.fromCharCode(65+q.ans)}</span>` : "";
+    feedback = `<div class="feedback">
+      <div class="mono" style="font-size:10px;margin-bottom:8px;color:${tone}">${label}${ansNote}</div>
+      <div>${esc(q.why)}</div></div>
+      <button class="primary" onclick="next()">${S.idx+1<total?"Next control":"View audit report"}</button>`;
+  }
+  app.innerHTML = `<div style="padding-top:26px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span class="mono" style="font-size:10px;color:var(--lime)">${seg.name} · ${q.sec==="Market"?"Competition / Pricing / Market":"Product"}</span>
+      <span class="mono" style="font-size:10px;color:var(--muted)">${String(S.idx+1).padStart(2,"0")}/${total}</span>
+    </div>
+    <div class="prog-track"><div class="prog-fill" style="width:${((S.idx+(answered?1:0))/total)*100}%"></div></div>
+    <h2>${esc(q.q)}</h2>
+    ${opts}
+    <button class="idk ${S.picked==='idk'?'picked':''}" onclick="choose('idk')">I don't know — log it as a gap</button>
+    ${feedback}</div>`;
+  window.scrollTo(0,0);
+}
+
+function renderResults(){
+  const seg = SEGMENTS.find(x=>x.name===S.seg);
+  const qs = seg.questions, total = qs.length, res = S.done[S.seg];
+  const count = t => res.filter(a=>a.result===t).length;
+  const correct=count("correct"), wrong=count("wrong"), idk=count("idk");
+  const pct = Math.round((correct/total)*100);
+  const bySec = ["Product","Market"].map(sec=>{
+    const idxs = qs.map((q,i)=>q.sec===sec?i:-1).filter(i=>i>=0);
+    const f = t => idxs.filter(i=>res[i].result===t).length;
+    return {sec, label: sec==="Market"?"Competition · Pricing · Market":"Product", c:f("correct"), w:f("wrong"), g:f("idk"), n:idxs.length};
+  });
+  const verdict = pct>=90?`Audit ready — you can run a ${S.seg} call cold.`
+    : pct>=75?"Substantially compliant. A few controls to remediate."
+    : pct>=50?"Partial coverage — good instincts, gaps in the details reps quote daily."
+    : "Observation period recommended — the remediation notes below will close this fast.";
+  const stats = [["Correct",correct,"var(--lime)"],["Wrong",wrong,"var(--coral)"],["Gaps",idk,"var(--amber)"]]
+    .map(([l,n,c])=>`<div class="stat" style="border-top:2px solid ${c}">
+      <div style="font-size:24px;font-weight:800">${n}</div>
+      <div class="mono" style="font-size:9px;color:var(--muted);margin-top:2px">${l}</div></div>`).join("");
+  const bars = bySec.map(b=>`<div style="margin-bottom:15px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+        <span>${b.label}</span><span style="color:var(--muted)">${b.c}/${b.n}</span></div>
+      <div class="bar-track">
+        <div style="width:${(b.c/b.n)*100}%;background:var(--lime)"></div>
+        <div style="width:${(b.w/b.n)*100}%;background:var(--coral)"></div>
+        <div style="width:${(b.g/b.n)*100}%;background:var(--amber)"></div></div></div>`).join("");
+  const weak = bySec.filter(b=>b.c/b.n<0.75);
+  const remed = weak.length ? `<div style="margin-top:24px">
+      <div class="mono" style="font-size:10px;color:var(--amber);margin-bottom:12px">Remediation plan</div>
+      ${weak.map(b=>`<div style="background:var(--surface);border-radius:12px;padding:14px 16px;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:700;margin-bottom:4px">${b.label}</div>
+        <div style="font-size:13px;color:var(--muted);line-height:1.55">${esc(REMEDIATION[S.seg][b.sec])}</div></div>`).join("")}</div>` : "";
+  const gapNote = idk>0 ? `<p style="font-size:13px;color:var(--muted);line-height:1.55;margin-top:18px">
+      ${idk} ${idk===1?"gap":"gaps"} flagged honestly instead of guessed — gaps are fixable; miscalibration isn't visible.</p>` : "";
+  app.innerHTML = `<div style="padding-top:40px">
+    <div class="mono" style="font-size:11px;color:var(--lime);margin-bottom:14px">${S.seg} · audit report</div>
+    <div style="display:flex;align-items:baseline;gap:12px">
+      <span style="font-size:60px;font-weight:800;line-height:1">${pct}%</span>
+      <span class="mono" style="font-size:11px;color:var(--muted)">readiness</span></div>
+    <p style="font-size:15px;line-height:1.5;margin:8px 0 22px">${verdict}</p>
+    <div style="display:flex;gap:8px;margin-bottom:26px">${stats}</div>
+    ${bars}${remed}${gapNote}
+    <div style="display:flex;gap:10px;margin-top:26px">
+      <button class="ghost" onclick="startSeg('${S.seg}')">Retake</button>
+      <button class="primary" style="flex:1;margin-top:0" onclick="goHome()">All segments</button></div></div>`;
+  window.scrollTo(0,0);
+}
+
+render();
+</script>
+</body>
+</html>
